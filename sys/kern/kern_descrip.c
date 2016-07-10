@@ -130,7 +130,8 @@ static int	getmaxfd(struct thread *td);
  * resource limit).
  *
  * Since threads may hold references to individual descriptor table
- * entries, the tables are never freed.  Instead, they are placed on a
+ * entries, the tables are only freed if a process has one thread and
+ * the table has not been shared. Otherwise, they are placed on a
  * linked list and freed only when the struct filedesc is released.
  */
 #define NDFILE		20
@@ -1540,6 +1541,7 @@ fdgrowtable(struct filedesc *fdp, int nfd)
 	struct freetable *ft;
 	struct fdescenttbl *ntable;
 	struct fdescenttbl *otable;
+	struct proc *p = curthread->td_proc;
 	int nnfiles, onfiles;
 	NDSLOTTYPE *nmap, *omap;
 
@@ -1601,19 +1603,24 @@ fdgrowtable(struct filedesc *fdp, int nfd)
 	atomic_store_rel_ptr((volatile void *)&fdp->fd_files, (uintptr_t)ntable);
 
 	/*
-	 * Do not free the old file table, as some threads may still
-	 * reference entries within it.  Instead, place it on a freelist
-	 * which will be processed when the struct filedesc is released.
+	 * If a the current process only has one thread, and the file
+	 * table is not shared, we can free the old file table. Otherwise
+	 * we place it on a freelist which will be processed when the
+	 * struct filedesc is released.
 	 *
 	 * Note that if onfiles == NDFILE, we're dealing with the original
 	 * static allocation contained within (struct filedesc0 *)fdp,
 	 * which must not be freed.
 	 */
 	if (onfiles > NDFILE) {
-		ft = (struct freetable *)&otable->fdt_ofiles[onfiles];
-		fdp0 = (struct filedesc0 *)fdp;
-		ft->ft_table = otable;
-		SLIST_INSERT_HEAD(&fdp0->fd_free, ft, ft_next);
+		if (fdp->fd_refcnt==1 && p->p_numthreads==1) {
+ 			free(otable, M_FILEDESC);
+		} else {
+			ft = (struct freetable *)&otable->fdt_ofiles[onfiles];
+			ft->ft_table = otable;
+			fdp0 = (struct filedesc0 *)fdp;
+			SLIST_INSERT_HEAD(&fdp0->fd_free, ft, ft_next);
+		}
 	}
 	/*
 	 * The map does not have the same possibility of threads still
