@@ -2045,11 +2045,21 @@ crsetgroups_locked(struct ucred *cr, int ngrp, gid_t *groups)
 	int i;
 	int j;
 	gid_t g;
+	unsigned int sorted = 0;
 	
 	KASSERT(cr->cr_agroups >= ngrp, ("cr_ngroups is too small"));
 
 	bcopy(groups, cr->cr_groups, ngrp * sizeof(gid_t));
 	cr->cr_ngroups = ngrp;
+
+	/* If the groups are already sorted, don't sort again */
+	for (i = 0; i < ngrp-1; i++) {
+		sorted += (cr->cr_groups[i] > cr->cr_groups[i+1]);
+	}
+
+        if (sorted==0) {
+                return;
+        }
 
 	/*
 	 * Sort all groups except cr_groups[0] to allow groupmember to
