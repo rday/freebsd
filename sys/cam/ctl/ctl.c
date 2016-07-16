@@ -2397,8 +2397,10 @@ ctl_free_args(int num_args, struct ctl_be_arg *args)
 		return;
 
 	for (i = 0; i < num_args; i++) {
-		free(args[i].kname, M_CTL);
-		free(args[i].kvalue, M_CTL);
+		if (args[i].kname != NULL)
+			free(args[i].kname, M_CTL);
+		if (args[i].kvalue != NULL)
+			free(args[i].kvalue, M_CTL);
 	}
 
 	free(args, M_CTL);
@@ -2425,6 +2427,12 @@ ctl_copyin_args(int num_args, struct ctl_be_arg *uargs,
 	for (i = 0; i < num_args; i++) {
 		uint8_t *tmpptr;
 
+		if (args[i].namelen == 0) {
+			snprintf(error_str, error_str_len, "Argument %d "
+				 "name length is invalid", i);
+			goto bailout;
+		}
+
 		args[i].kname = ctl_copyin_alloc(args[i].name,
 			args[i].namelen, error_str, error_str_len);
 		if (args[i].kname == NULL)
@@ -2437,10 +2445,17 @@ ctl_copyin_args(int num_args, struct ctl_be_arg *uargs,
 		}
 
 		if (args[i].flags & CTL_BEARG_RD) {
+			if (args[i].vallen == 0) {
+				snprintf(error_str, error_str_len, "Argument %d "
+					 "value length is invalid", i);
+				goto bailout;
+			}
+
 			tmpptr = ctl_copyin_alloc(args[i].value,
 				args[i].vallen, error_str, error_str_len);
 			if (tmpptr == NULL)
 				goto bailout;
+
 			if ((args[i].flags & CTL_BEARG_ASCII)
 			 && (tmpptr[args[i].vallen - 1] != '\0')) {
 				snprintf(error_str, error_str_len, "Argument "
