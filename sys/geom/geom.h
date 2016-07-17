@@ -347,7 +347,7 @@ struct g_kerneldump {
 MALLOC_DECLARE(M_GEOM);
 
 static __inline void *
-g_malloc(int size, int flags)
+g_malloc(size_t size, int flags)
 {
 	void *p;
 
