@@ -1556,6 +1556,7 @@ pargs_alloc(int len)
 {
 	struct pargs *pa;
 
+	printf("XXX: pargs_alloc called with %d\n", len);
 	pa = malloc(sizeof(struct pargs) + len, M_PARGS,
 		M_WAITOK);
 	refcount_init(&pa->ar_ref, 1);
@@ -1878,6 +1879,7 @@ sysctl_kern_proc_args(SYSCTL_HANDLER_ARGS)
 	struct sbuf sb;
 	int flags, error = 0, error2;
 
+	printf("XXX: Namelen %d\n", namelen);
 	if (namelen != 1)
 		return (EINVAL);
 
@@ -1911,11 +1913,14 @@ sysctl_kern_proc_args(SYSCTL_HANDLER_ARGS)
 	if (error != 0 || req->newptr == NULL)
 		return (error);
 
+	printf("XXX: allocating req->newlen + sizeof(struct pargs) == %lu %lu %lu < %lu\n", req->newlen, sizeof(struct pargs), req->newlen + sizeof(struct pargs), ps_arg_cache_limit);
 	if (req->newlen + sizeof(struct pargs) > ps_arg_cache_limit)
 		return (ENOMEM);
+	printf("XXX: passed check, passing to pargs_alloc(%lu)\n", req->newlen);
 	newpa = pargs_alloc(req->newlen);
 	error = SYSCTL_IN(req, newpa->ar_args, req->newlen);
 	if (error != 0) {
+		printf("XXX: got an error %d\n", error);
 		pargs_free(newpa);
 		return (error);
 	}
